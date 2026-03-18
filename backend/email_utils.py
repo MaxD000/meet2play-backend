@@ -7,6 +7,7 @@ SMTP_HOST = os.getenv("SMTP_HOST", "smtp-relay.brevo.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "")
 APP_URL = os.getenv("APP_URL", "http://localhost:8000")
 DEV_MODE = os.getenv("DEV_MODE", "true").lower() == "true"
 
@@ -29,7 +30,7 @@ def send_verification_email(to_email: str, token: str, name: str) -> None:
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "Meet2Play — Vérifiez votre adresse email"
-    msg["From"] = f"Meet2Play <{SMTP_USER}>"
+    msg["From"] = f"Meet2Play <{SMTP_FROM}>"
     msg["To"] = to_email
 
     html_body = f"""
