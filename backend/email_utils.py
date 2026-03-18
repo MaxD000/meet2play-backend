@@ -1,17 +1,20 @@
 import os
-import resend
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp-relay.brevo.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 APP_URL = os.getenv("APP_URL", "http://localhost:8000")
 DEV_MODE = os.getenv("DEV_MODE", "true").lower() == "true"
-
-resend.api_key = RESEND_API_KEY
 
 
 def send_verification_email(to_email: str, token: str, name: str) -> None:
     """
     En mode DEV : affiche le lien dans le terminal.
-    En mode PROD : envoie un vrai email via Resend.
+    En mode PROD : envoie un vrai email via Brevo SMTP.
     """
     link = f"{APP_URL}/auth/verify-email?token={token}"
 
@@ -23,6 +26,11 @@ def send_verification_email(to_email: str, token: str, name: str) -> None:
         print(f"  {link}")
         print(f"{separator}\n")
         return
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Meet2Play — Vérifiez votre adresse email"
+    msg["From"] = f"Meet2Play <{SMTP_USER}>"
+    msg["To"] = to_email
 
     html_body = f"""
     <!DOCTYPE html>
@@ -53,9 +61,10 @@ def send_verification_email(to_email: str, token: str, name: str) -> None:
     </html>
     """
 
-    resend.Emails.send({
-        "from": "Meet2Play <onboarding@resend.dev>",
-        "to": to_email,
-        "subject": "Meet2Play — Vérifiez votre adresse email",
-        "html": html_body,
-    })
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        server.ehlo()
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_USER, to_email, msg.as_string())
