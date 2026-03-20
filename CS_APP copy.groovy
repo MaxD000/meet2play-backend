@@ -14,7 +14,9 @@ const sky = Color(0xFF0EA5E9);
 
 // ─── Service API ──────────────────────────────────────────────────────────────
 
-const _apiBase = 'http://127.0.0.1:8000';
+// En développement local : 'http://127.0.0.1:8000'
+// En production (Render) : 'https://meet2play-backend.onrender.com'
+const _apiBase = 'https://meet2play-backend.onrender.com';
 
 class ApiService {
   static String? _token;

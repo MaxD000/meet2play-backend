@@ -31,25 +31,16 @@ def register(req: schemas.RegisterRequest, db: Session = Depends(get_db)):
             detail="Le mot de passe doit contenir au moins 6 caractères.",
         )
 
-    # Créer le token de vérification (UUID aléatoire)
-    verification_token = str(uuid.uuid4())
-    expires = datetime.utcnow() + timedelta(hours=24)
-
     user = models.User(
         email=req.email,
         hashed_password=hash_password(req.password),
         name=req.name.strip(),
-        is_verified=False,
-        verification_token=verification_token,
-        verification_expires=expires,
+        is_verified=True,
     )
     db.add(user)
     db.commit()
 
-    # Envoyer l'email de vérification
-    send_verification_email(req.email, verification_token, req.name)
-
-    return {"message": f"Compte créé ! Un email de vérification a été envoyé à {req.email}."}
+    return {"message": f"Compte créé ! Vous pouvez maintenant vous connecter."}
 
 
 # ─── Vérification email ───────────────────────────────────────────────────────
@@ -112,12 +103,6 @@ def login(req: schemas.LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou mot de passe incorrect.",
-        )
-
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email non vérifié. Vérifiez votre boîte de réception.",
         )
 
     access_token = create_access_token(user.email)
