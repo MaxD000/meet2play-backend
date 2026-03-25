@@ -29,3 +29,10 @@ env/
 
 # macOS
 .DS_Store
+
+# Large data files (ENS challenge dataset — too large for GitHub)
+job_listings.json
+random_predictions_*.csv
+
+# Jupyter checkpoints
+.ipynb_checkpoints/

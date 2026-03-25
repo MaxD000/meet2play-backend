@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Démo Messagerie</title>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     WIDGET MESSAGERIE — copiez tout ce qui est entre les balises WIDGET
+     dans votre SaaS et adaptez API_BASE_URL + votre système d'auth.
+     ════════════════════════════════════════════════════════════════════ -->
+
+<!-- ───── WIDGET CSS ───── -->
+<style>
+/* ── Variables ── */
+:root {
+  --chat-primary: #5865F2;
+  --chat-primary-dark: #4752C4;
+  --chat-bg: #fff;
+  --chat-sidebar-bg: #f4f5f7;
+  --chat-border: #e1e4e8;
+  --chat-bubble-me: #5865F2;
+  --chat-bubble-other: #f0f2f5;
+  --chat-text: #1a1a2e;
+  --chat-muted: #888;
+  --chat-radius: 14px;
+  --chat-shadow: 0 8px 32px rgba(0,0,0,.14);
+}
+
+/* ── Floating button ── */
+#chat-fab {
+  position: fixed; bottom: 28px; right: 28px; z-index: 9998;
+  width: 60px; height: 60px; border-radius: 50%;
+  background: var(--chat-primary); color: #fff;
+  border: none; cursor: pointer; font-size: 26px;
+  box-shadow: var(--chat-shadow);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .2s, background .2s;
+}
+#chat-fab:hover { background: var(--chat-primary-dark); transform: scale(1.08); }
+#chat-badge {
+  position: absolute; top: 4px; right: 4px;
+  background: #e74c3c; color: #fff; border-radius: 50%;
+  width: 18px; height: 18px; font-size: 11px; font-weight: 700;
+  display: none; align-items: center; justify-content: center;
+}
+
+/* ── Panel container ── */
+#chat-panel {
+  position: fixed; bottom: 100px; right: 28px; z-index: 9999;
+  width: 780px; max-width: calc(100vw - 40px);
+  height: 540px; max-height: calc(100vh - 120px);
+  background: var(--chat-bg); border-radius: var(--chat-radius);
+  box-shadow: var(--chat-shadow); display: none; flex-direction: row;
+  overflow: hidden; border: 1px solid var(--chat-border);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+#chat-panel.open { display: flex; }
+
+/* ── Sidebar ── */
+#chat-sidebar {
+  width: 240px; flex-shrink: 0;
+  background: var(--chat-sidebar-bg);
+  border-right: 1px solid var(--chat-border);
+  display: flex; flex-direction: column;
+}
+#chat-sidebar-header {
+  padding: 14px 16px; font-weight: 700; font-size: 15px;
+  color: var(--chat-text); border-bottom: 1px solid var(--chat-border);
+  display: flex; align-items: center; gap: 8px;
+}
+#chat-new-btn {
+  margin-left: auto; background: var(--chat-primary); color: #fff;
+  border: none; border-radius: 6px; padding: 4px 10px; font-size: 20px;
+  cursor: pointer; line-height: 1;
+}
+#chat-conv-list { flex: 1; overflow-y: auto; }
+.chat-conv-item {
+  padding: 12px 14px; cursor: pointer;
+  border-bottom: 1px solid var(--chat-border);
+  transition: background .15s;
+}
+.chat-conv-item:hover, .chat-conv-item.active { background: #e8eaf6; }
+.chat-conv-name { font-weight: 600; font-size: 14px; color: var(--chat-text); }
+.chat-conv-preview {
+  font-size: 12px; color: var(--chat-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;
+}
+.chat-conv-badge {
+  display: inline-block; background: var(--chat-primary); color: #fff;
+  border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700;
+  float: right; margin-top: 2px;
+}
+
+/* ── Main chat area ── */
+#chat-main {
+  flex: 1; display: flex; flex-direction: column; min-width: 0;
+}
+#chat-topbar {
+  padding: 12px 16px; border-bottom: 1px solid var(--chat-border);
+  font-weight: 700; font-size: 15px; color: var(--chat-text);
+  display: flex; align-items: center; gap: 8px;
+}
+#chat-close {
+  margin-left: auto; background: none; border: none;
+  font-size: 20px; cursor: pointer; color: var(--chat-muted);
+}
+#chat-messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.chat-msg { display: flex; flex-direction: column; max-width: 75%; }
+.chat-msg.me { align-self: flex-end; align-items: flex-end; }
+.chat-msg.other { align-self: flex-start; align-items: flex-start; }
+.chat-msg-name { font-size: 11px; color: var(--chat-muted); margin-bottom: 2px; }
+.chat-msg-bubble {
+  padding: 9px 14px; border-radius: 18px;
+  font-size: 14px; line-height: 1.4; word-break: break-word;
+}
+.chat-msg.me .chat-msg-bubble {
+  background: var(--chat-bubble-me); color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-msg.other .chat-msg-bubble {
+  background: var(--chat-bubble-other); color: var(--chat-text);
+  border-bottom-left-radius: 4px;
+}
+.chat-msg-time { font-size: 10px; color: var(--chat-muted); margin-top: 2px; }
+
+/* ── WS status ── */
+#chat-ws-status {
+  padding: 4px 14px; font-size: 12px; text-align: center; display: none;
+}
+#chat-ws-status.connecting { background: #fff3cd; color: #856404; display: block; }
+#chat-ws-status.error { background: #f8d7da; color: #721c24; display: block; }
+
+/* ── Input bar ── */
+#chat-input-bar {
+  padding: 12px 14px; border-top: 1px solid var(--chat-border);
+  display: flex; gap: 8px;
+}
+#chat-input {
+  flex: 1; border: 1px solid var(--chat-border); border-radius: 24px;
+  padding: 10px 16px; font-size: 14px; outline: none;
+  background: var(--chat-sidebar-bg);
+  transition: border-color .2s;
+}
+#chat-input:focus { border-color: var(--chat-primary); }
+#chat-send {
+  background: var(--chat-primary); color: #fff; border: none;
+  border-radius: 50%; width: 40px; height: 40px; font-size: 18px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background .2s;
+}
+#chat-send:hover { background: var(--chat-primary-dark); }
+
+/* ── Placeholder ── */
+#chat-placeholder {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; color: var(--chat-muted);
+  gap: 12px; font-size: 15px;
+}
+#chat-placeholder span { font-size: 48px; }
+
+/* ── New conversation modal ── */
+#chat-new-modal {
+  display: none; position: absolute; inset: 0; z-index: 10;
+  background: rgba(0,0,0,.4); align-items: center; justify-content: center;
+}
+#chat-new-modal.open { display: flex; }
+#chat-new-inner {
+  background: #fff; border-radius: 12px; padding: 24px;
+  width: 320px; box-shadow: var(--chat-shadow);
+}
+#chat-new-inner h3 { margin: 0 0 14px; font-size: 16px; }
+#chat-new-id {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--chat-border);
+  border-radius: 8px; font-size: 14px; box-sizing: border-box; outline: none;
+}
+#chat-new-id:focus { border-color: var(--chat-primary); }
+#chat-new-actions { margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end; }
+.chat-btn { padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; }
+.chat-btn-primary { background: var(--chat-primary); color: #fff; }
+.chat-btn-secondary { background: #eee; color: #333; }
+</style>
+
+<!-- ───── PAGE DE DÉMO ───── -->
+<style>
+body { font-family: -apple-system,sans-serif; background: #f7f8fc; margin: 0; }
+.demo-container { max-width: 600px; margin: 80px auto; text-align: center; padding: 40px; background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+h1 { color: #5865F2; }
+.demo-form { display: flex; flex-direction: column; gap: 12px; max-width: 320px; margin: 24px auto 0; }
+.demo-form input { padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+.demo-form button { padding: 10px; background: #5865F2; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+</style>
+</head>
+
+<body>
+
+<!-- ── Démo : connexion ── -->
+<div class="demo-container" id="demo-login">
+  <h1>💬 Démo Messagerie</h1>
+  <p>Connectez-vous pour tester le chat en temps réel.</p>
+  <div class="demo-form">
+    <input id="demo-email" type="email" placeholder="Email" />
+    <input id="demo-pass" type="password" placeholder="Mot de passe" />
+    <button onclick="demoLogin()">Se connecter</button>
+  </div>
+  <p id="demo-error" style="color:red;display:none"></p>
+</div>
+
+<!-- ══════════════════════════════════════════
+     WIDGET HTML — à copier dans votre SaaS
+═══════════════════════════════════════════ -->
+<button id="chat-fab" onclick="toggleChat()" style="display:none" title="Messagerie">
+  💬
+  <span id="chat-badge"></span>
+</button>
+
+<div id="chat-panel">
+  <!-- Sidebar conversations -->
+  <div id="chat-sidebar">
+    <div id="chat-sidebar-header">
+      Messages
+      <button id="chat-new-btn" title="Nouvelle conversation" onclick="openNewModal()">+</button>
+    </div>
+    <div id="chat-conv-list"></div>
+  </div>
+
+  <!-- Zone principale -->
+  <div id="chat-main">
+    <div id="chat-placeholder">
+      <span>💬</span>
+      Sélectionnez une conversation
+    </div>
+
+    <!-- Topbar (masquée par défaut) -->
+    <div id="chat-topbar" style="display:none">
+      <span id="chat-peer-name"></span>
+      <button id="chat-close" onclick="toggleChat()">✕</button>
+    </div>
+
+    <!-- Statut WebSocket -->
+    <div id="chat-ws-status"></div>
+
+    <!-- Messages (masqués par défaut) -->
+    <div id="chat-messages" style="display:none"></div>
+
+    <!-- Input (masqué par défaut) -->
+    <div id="chat-input-bar" style="display:none">
+      <input id="chat-input" placeholder="Votre message…"
+             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}" />
+      <button id="chat-send" onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+
+  <!-- Modal nouvelle conv -->
+  <div id="chat-new-modal">
+    <div id="chat-new-inner">
+      <h3>Nouvelle conversation</h3>
+      <input id="chat-new-id" type="number" placeholder="ID de l'utilisateur" />
+      <div id="chat-new-actions">
+        <button class="chat-btn chat-btn-secondary" onclick="closeNewModal()">Annuler</button>
+        <button class="chat-btn chat-btn-primary" onclick="startConv()">Démarrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ══════════════ FIN WIDGET HTML ══════════════ -->
+
+
+<!-- ══════════════════════════════════════════
+     WIDGET JS — à copier dans votre SaaS
+     Remplacez API_BASE_URL par votre URL de backend.
+     Appelez ChatWidget.init(token, myUserId) après connexion.
+═══════════════════════════════════════════ -->
+<script>
+const API_BASE_URL = "http://localhost:8001"; // ← adaptez
+
+const ChatWidget = (() => {
+  let _token = null;
+  let _myId = null;
+  let _currentConvId = null;
+  let _ws = null;
+  let _totalUnread = 0;
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  function init(token, myUserId) {
+    _token = token;
+    _myId = myUserId;
+    document.getElementById("chat-fab").style.display = "flex";
+    loadConversations();
+  }
+
+  // ── Toggle panel ─────────────────────────────────────────────────────────
+  function toggle() {
+    const panel = document.getElementById("chat-panel");
+    panel.classList.toggle("open");
+    if (panel.classList.contains("open")) loadConversations();
+  }
+
+  // ── REST helpers ─────────────────────────────────────────────────────────
+  async function api(path, method = "GET", body = null) {
+    const opts = {
+      method,
+      headers: { Authorization: `Bearer ${_token}`, "Content-Type": "application/json" },
+    };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(API_BASE_URL + path, opts);
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  }
+
+  // ── Conversations ─────────────────────────────────────────────────────────
+  async function loadConversations() {
+    let convs;
+    try { convs = await api("/chat/conversations"); } catch { return; }
+    _totalUnread = convs.reduce((s, c) => s + c.unread_count, 0);
+    updateBadge();
+
+    const list = document.getElementById("chat-conv-list");
+    list.innerHTML = "";
+    convs.forEach(c => {
+      const div = document.createElement("div");
+      div.className = "chat-conv-item" + (c.id === _currentConvId ? " active" : "");
+      div.dataset.id = c.id;
+      div.dataset.name = c.other_user_name;
+      div.innerHTML = `
+        <div class="chat-conv-name">
+          ${esc(c.other_user_name)}
+          ${c.unread_count > 0 ? `<span class="chat-conv-badge">${c.unread_count}</span>` : ""}
+        </div>
+        <div class="chat-conv-preview">${esc(c.last_message || "Aucun message")}</div>`;
+      div.onclick = () => openConversation(c.id, c.other_user_name);
+      list.appendChild(div);
+    });
+  }
+
+  // ── Open conversation ─────────────────────────────────────────────────────
+  async function openConversation(convId, peerName) {
+    _currentConvId = convId;
+
+    // Highlight sidebar item
+    document.querySelectorAll(".chat-conv-item").forEach(el => {
+      el.classList.toggle("active", parseInt(el.dataset.id) === convId);
+    });
+
+    // Afficher les zones
+    document.getElementById("chat-placeholder").style.display = "none";
+    document.getElementById("chat-topbar").style.display = "flex";
+    document.getElementById("chat-messages").style.display = "flex";
+    document.getElementById("chat-input-bar").style.display = "flex";
+    document.getElementById("chat-peer-name").textContent = peerName;
+
+    // Fermer WS précédent
+    if (_ws) { _ws.close(); _ws = null; }
+
+    // Historique
+    await loadMessages(convId);
+
+    // Marquer lu
+    try { await api(`/chat/conversations/${convId}/read`, "PATCH"); } catch {}
+    loadConversations(); // rafraîchir compteurs
+
+    // Ouvrir WebSocket
+    connectWS(convId);
+  }
+
+  // ── Messages history ──────────────────────────────────────────────────────
+  async function loadMessages(convId) {
+    let msgs;
+    try { msgs = await api(`/chat/conversations/${convId}/messages?limit=60`); } catch { return; }
+    const box = document.getElementById("chat-messages");
+    box.innerHTML = "";
+    msgs.forEach(m => appendMessage(m));
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function appendMessage(m) {
+    const isMe = m.sender_id === _myId;
+    const div = document.createElement("div");
+    div.className = `chat-msg ${isMe ? "me" : "other"}`;
+    const t = new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    div.innerHTML = `
+      ${!isMe ? `<div class="chat-msg-name">${esc(m.sender_name)}</div>` : ""}
+      <div class="chat-msg-bubble">${esc(m.content)}</div>
+      <div class="chat-msg-time">${t}</div>`;
+    document.getElementById("chat-messages").appendChild(div);
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────
+  function setWsStatus(state) {
+    const el = document.getElementById("chat-ws-status");
+    el.className = state;
+    if (state === "connecting") el.textContent = "⏳ Connexion en cours…";
+    else if (state === "error")  el.textContent = "⚠️ Connexion perdue — reconnexion auto dans 3s…";
+    else el.textContent = "";
+  }
+
+  function connectWS(convId) {
+    setWsStatus("connecting");
+    const wsUrl = API_BASE_URL.replace(/^http/, "ws")
+      + `/chat/ws/${convId}?token=${encodeURIComponent(_token)}`;
+    _ws = new WebSocket(wsUrl);
+
+    _ws.onopen = () => {
+      setWsStatus("");
+      document.getElementById("chat-send").disabled = false;
+      document.getElementById("chat-input").disabled = false;
+    };
+
+    _ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.conversation_id === _currentConvId) {
+        appendMessage(msg);
+        const box = document.getElementById("chat-messages");
+        box.scrollTop = box.scrollHeight;
+        api(`/chat/conversations/${_currentConvId}/read`, "PATCH").catch(() => {});
+      }
+      loadConversations();
+    };
+
+    _ws.onerror = () => setWsStatus("error");
+
+    _ws.onclose = () => {
+      setWsStatus("error");
+      document.getElementById("chat-send").disabled = true;
+      document.getElementById("chat-input").disabled = true;
+      setTimeout(() => {
+        if (_currentConvId === convId) connectWS(convId);
+      }, 3000);
+    };
+  }
+
+  // ── Send message ──────────────────────────────────────────────────────────
+  function send() {
+    const input = document.getElementById("chat-input");
+    const content = input.value.trim();
+    if (!content) return;
+    if (!_ws || _ws.readyState !== WebSocket.OPEN) {
+      setWsStatus("error");
+      return;
+    }
+    _ws.send(JSON.stringify({ content }));
+    input.value = "";
+  }
+
+  // ── New conversation ──────────────────────────────────────────────────────
+  function openNew() {
+    document.getElementById("chat-new-modal").classList.add("open");
+    setTimeout(() => document.getElementById("chat-new-id").focus(), 50);
+  }
+  function closeNew() {
+    document.getElementById("chat-new-modal").classList.remove("open");
+    document.getElementById("chat-new-id").value = "";
+  }
+  async function startNew() {
+    const otherId = parseInt(document.getElementById("chat-new-id").value);
+    if (!otherId) return;
+    try {
+      const conv = await api("/chat/conversations", "POST", { other_user_id: otherId });
+      closeNew();
+      await loadConversations();
+      openConversation(conv.id, conv.other_user_name);
+    } catch (e) {
+      alert("Impossible de créer la conversation : " + e.message);
+    }
+  }
+
+  // ── Utils ─────────────────────────────────────────────────────────────────
+  function updateBadge() {
+    const badge = document.getElementById("chat-badge");
+    if (_totalUnread > 0) {
+      badge.textContent = _totalUnread > 99 ? "99+" : _totalUnread;
+      badge.style.display = "flex";
+    } else {
+      badge.style.display = "none";
+    }
+  }
+
+  function esc(str) {
+    return String(str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  return { init, toggle, send, openNew, closeNew, startNew };
+})();
+
+// ── Glue avec les boutons HTML ────────────────────────────────────────────────
+function toggleChat() { ChatWidget.toggle(); }
+function sendMessage() { ChatWidget.send(); }
+function openNewModal() { ChatWidget.openNew(); }
+function closeNewModal() { ChatWidget.closeNew(); }
+function startConv() { ChatWidget.startNew(); }
+</script>
+
+<!-- ══════════════ FIN WIDGET JS ══════════════ -->
+
+
+<!-- ── Script démo login (spécifique à cette page) ── -->
+<script>
+async function demoLogin() {
+  const email = document.getElementById("demo-email").value;
+  const pass  = document.getElementById("demo-pass").value;
+  const err   = document.getElementById("demo-error");
+  err.style.display = "none";
+
+  try {
+    const r = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: pass }),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    const { access_token } = await r.json();
+
+    // Récupérer l'ID de l'utilisateur connecté
+    const me = await fetch(`${API_BASE_URL}/users/me`, {
+      headers: { Authorization: `Bearer ${access_token}` },
+    }).then(r => r.json());
+
+    document.getElementById("demo-login").innerHTML =
+      `<h1>✅ Connecté</h1><p>Bienvenue <strong>${me.name || me.email}</strong> (ID: ${me.id})</p>
+       <p style="color:#888;font-size:13px">Cliquez sur 💬 en bas à droite pour ouvrir la messagerie.</p>`;
+
+    // Initialiser le widget
+    ChatWidget.init(access_token, me.id);
+
+  } catch (e) {
+    err.textContent = e.message;
+    err.style.display = "block";
+  }
+}
+</script>
+
+</body>
+</html>

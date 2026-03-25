@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db
 from routers import auth, users
+from routers import chat
+from routers import jobs
 
 app = FastAPI(
     title="Meet2Play API",
@@ -33,6 +35,8 @@ async def startup():
 # ─── Routers ──────────────────────────────────────────────────────────────────
 app.include_router(auth.router, prefix="/auth", tags=["Authentification"])
 app.include_router(users.router, prefix="/users", tags=["Utilisateurs"])
+app.include_router(chat.router, prefix="/chat", tags=["Messagerie"])
+app.include_router(jobs.router, prefix="/jobs", tags=["Offres"])
 
 # ─── Route de santé ───────────────────────────────────────────────────────────
 @app.get("/", tags=["Santé"])
